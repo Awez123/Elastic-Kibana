@@ -1,0 +1,159 @@
+daemonset:
+  annotations: {}
+  labels: {}
+  affinity: {}
+  enabled: true
+  envFrom: []
+  extraEnvs:
+    - name: "LOGSTASH_HOST"
+      value: "logstash-logstash-headless.logging.svc.cluster.local"
+  extraVolumes: []
+  extraVolumeMounts: []
+  hostNetworking: false
+  filebeatConfig:
+    filebeat.yml: |
+      filebeat.inputs:
+        - type: container
+          paths:
+            - /var/log/containers/*.log
+          processors:
+            - add_kubernetes_metadata:
+                host: ${NODE_NAME}
+                matchers:
+                - logs_path:
+                    logs_path: "/var/log/containers/"
+
+      output.logstash:
+        hosts: ['${LOGSTASH_HOST:logstash-logstash-headless.logging.svc.cluster.local}:5044']
+        codec.json:
+          charset: utf-8
+        ssl.enabled: false
+        # Removed certificate authority as SSL is disabled
+  maxUnavailable: 1
+  nodeSelector: {}
+  securityContext:
+    runAsUser: 0
+    privileged: false
+  resources:
+    requests:
+      cpu: "100m"
+      memory: "100Mi"
+    limits:
+      cpu: "1000m"
+      memory: "200Mi"
+  tolerations: []
+
+deployment:
+  annotations: {}
+  labels: {}
+  affinity: {}
+  enabled: false
+  envFrom: []
+  extraEnvs:
+    - name: "LOGSTASH_HOST"
+      value: "logstash-logstash-headless.logging.svc.cluster.local"
+  extraVolumes: []
+  extraVolumeMounts: []
+  filebeatConfig:
+    filebeat.yml: |
+      filebeat.inputs:
+        - type: log
+          paths:
+            - /usr/share/filebeat/logs/filebeat
+
+      output.logstash:
+        hosts: ['${LOGSTASH_HOST:logstash-logstash-headless.logging.svc.cluster.local}:5044']
+        ssl.enabled: false
+        # Removed certificate authority as SSL is disabled
+  nodeSelector: {}
+  securityContext:
+    runAsUser: 0
+    privileged: false
+  resources:
+    requests:
+      cpu: "100m"
+      memory: "100Mi"
+    limits:
+      cpu: "1000m"
+      memory: "200Mi"
+  tolerations: []
+
+replicas: 1
+
+extraContainers: ""
+
+extraInitContainers: []
+
+hostPathRoot: /var/lib
+
+dnsConfig: {}
+
+hostAliases: []
+
+image: "docker.elastic.co/beats/filebeat"
+imageTag: "8.5.1"
+imagePullPolicy: "IfNotPresent"
+imagePullSecrets: []
+
+livenessProbe:
+  exec:
+    command:
+      - sh
+      - -c
+      - |
+        #!/usr/bin/env bash -e
+        curl --fail 127.0.0.1:5066
+  failureThreshold: 3
+  initialDelaySeconds: 10
+  periodSeconds: 10
+  timeoutSeconds: 5
+
+readinessProbe:
+  exec:
+    command:
+      - sh
+      - -c
+      - |
+        #!/usr/bin/env bash -e
+        filebeat test output
+  failureThreshold: 3
+  initialDelaySeconds: 30
+  periodSeconds: 10
+  timeoutSeconds: 10
+
+managedServiceAccount: true
+
+clusterRoleRules:
+  - apiGroups:
+      - ""
+    resources:
+      - namespaces
+      - nodes
+      - pods
+    verbs:
+      - get
+      - list
+      - watch
+  - apiGroups:
+      - "apps"
+    resources:
+      - replicasets
+    verbs:
+      - get
+      - list
+      - watch
+
+podAnnotations: {}
+
+serviceAccount: ""
+
+serviceAccountAnnotations: {}
+
+terminationGracePeriod: 30
+
+priorityClassName: ""
+
+updateStrategy: RollingUpdate
+
+nameOverride: ""
+fullnameOverride: ""
